@@ -1,0 +1,641 @@
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" 
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+  <!-- http://wixtoolset.org/documentation/manual/v3/xsd/wix/product.html -->
+  <Product Id="7BC4AB2E-2739-4345-A981-5E976739B0BA" 
+           UpgradeCode="025a09ba-4661-4ada-9d16-7f9b596e8581"
+           Name = "GameIT Desktop App (Machine - MSI)"
+           Version="1.0.0.0"
+           Manufacturer="Odero AB"
+           Language="1033">
+    <!-- Only run this installer on Windows 7 or up (or if it"s already installed, I guess) -->
+    <!-- <Condition Message="This application is only supported on Windows 7 or higher.">
+      <![CDATA[Installed OR (VersionNT >= 601)]]>
+    </Condition> -->
+    <!-- http://wixtoolset.org/documentation/manual/v3/xsd/wix/package.html -->
+    <Package InstallerVersion="405"
+             Compressed="yes"
+             Comments="Windows Installer Package"
+             Platform="x86"
+             InstallScope="perMachine"/>
+    <!-- Don't allow downgrades -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A later version of this product is already installed. Setup will now exit."/>
+    <!-- This will hide our Uninstall entry in Apps & Features. We doing this so
+    we can write our own which we can better control. -->
+    <Property Id="ARPSYSTEMCOMPONENT" Value="1" />
+    <!-- While the MSI package is hidden in Apps & Features, it can still be queried
+    via PowerShell and other means. To differentiate we give the public entry a slightly
+    different name to make admins life easier.  -->
+    <Property Id="VisibleProductName" Value="GameIT Desktop App (Machine)" />
+    <!-- Tells the package to install perUser or perMachine. In case of perUser, all
+    files will be redirected to the user profile and all registry entries to HKCU. -->
+    <Property Id="MSIINSTALLPERUSER" Secure="yes" Value="0" />
+    <!-- Overides the default install mode. It solves a problem where
+    individual packaged files that have the same version as in previous
+    installed App version will be deleted if the files are in use during
+    this upgrade. Unfortunately this causes an ICE 40 warning during linking. -->
+    <Property Id="REINSTALLMODE" Value="emus" />
+    <!-- Overrides the default reboot behavior if files are in use during the upgrade.
+    By default, this will be set to "ReallySuppress" to make sure no unexpected reboot will happpen.-->
+    <Property Id="REBOOT" Value="ReallySuppress" />
+    <!-- Installlation level to use that determines which features are installed.
+    see guides/enduser.md to check which Install Level maps to which feature that will
+    correspondingly get installed.
+    If not set, this will default to "2" (Main Feature, Launch On Login) -->
+    <Property Id="INSTALLLEVEL" Value="2" />
+    <!-- Allows to customize the Windows user group that gets access rights on
+    the install folder in cas the auto-updater is installed. User that run the App
+    must be part of that user group to be able to auto-update. -->
+    <Property Id="UPDATERUSERGROUP" Value="Users" />
+    <!-- A property to define whether the auto-updater is enabled when the
+    feature gets installed. This way the update can be installed but also be disabled
+    by overwriting the default value.  -->
+    <Property Id="AUTOUPDATEENABLED" Value="1" />
+    <!-- Necessary registry search to find the install path which is used by the
+    PurgeOnUninstall action. Since this package can be installed perUser or perMachine,
+    we have to look in both places. First successful search wins. -->
+    <Property Id="INSTALLPATH">
+      <RegistrySearch Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7BC4AB2E-2739-4345-A981-5E976739B0BA}.msq"
+                      Root="HKCU" 
+                      Type="raw"
+                      Id="INSTALLPATH_REGSEARCH_HKCU"
+                      Name="InstallPath"
+                      Win64="no"/>
+      <RegistrySearch Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7BC4AB2E-2739-4345-A981-5E976739B0BA}.msq"
+                      Root="HKLM" 
+                      Type="raw"
+                      Id="INSTALLPATH_REGSEARCH_HKLM"
+                      Name="InstallPath"
+                      Win64="no"/>
+    </Property>
+    <!-- Lets change the product name depending on the perUser installMode. 
+    This way the user and admins can see in which scope the MSI was installed. -->
+    <SetProperty Action="SetVisibleProductName" Id="VisibleProductName" Sequence="both" Before="AppSearch"  Value="GameIT Desktop App (User)">
+      <![CDATA[MSIINSTALLPERUSER = "1"]]>
+    </SetProperty>
+    <!-- Again we give thee MSI generaten entry a slightly different name to help 
+    differentiate between the public one and the invisible one. -->
+    <SetProperty Action="SetProductName" Id="ProductName" Sequence="both" Before="AppSearch"  Value="GameIT Desktop App (User - MSI)">
+      <![CDATA[MSIINSTALLPERUSER = "1"]]>
+    </SetProperty>
+
+    <Media Id="1" Cabinet="product.cab" EmbedCab="yes"/>
+
+    <UI Id="UserInterface">
+      <TextStyle Id="WixUI_Font_Normal" FaceName="Tahoma" Size="8" />
+      <TextStyle Id="WixUI_Font_Bigger" FaceName="Tahoma" Size="12" />
+      <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
+      <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
+      <Property Id="WixUI_Mode" Value="FeatureTree" />
+      <DialogRef Id="ErrorDlg" />
+      <DialogRef Id="FatalError" />
+      <DialogRef Id="FilesInUse" />
+      <DialogRef Id="MsiRMFilesInUse" />
+      <DialogRef Id="PrepareDlg" />
+      <DialogRef Id="ProgressDlg" />
+      <DialogRef Id="ResumeDlg" />
+      <DialogRef Id="UserExit" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="CustomizeDlg">NOT Installed</Publish>
+      <Publish Dialog="WelcomeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">Installed AND PATCH</Publish>
+      <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="1">Installed</Publish>
+      <Publish Dialog="CustomizeDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="2">NOT Installed</Publish>
+      <Publish Dialog="CustomizeDlg" Control="Next" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="CustomizeDlg" Order="1">NOT Installed OR WixUI_InstallMode = "Change"</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="MaintenanceTypeDlg" Order="2">Installed AND NOT PATCH</Publish>
+      <Publish Dialog="VerifyReadyDlg" Control="Back" Event="NewDialog" Value="WelcomeDlg" Order="3">Installed AND PATCH</Publish>
+      <Publish Dialog="MaintenanceWelcomeDlg" Control="Next" Event="NewDialog" Value="MaintenanceTypeDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="ChangeButton" Event="NewDialog" Value="CustomizeDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
+      <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
+    </UI>
+    <UIRef Id="WixUI_Common" />
+
+
+    <!-- Step 2: Add files and directories -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+       <!-- Installation files to %PROGRAMFILES% -->
+      <Directory Id="ProgramFilesFolder">
+        <Directory Id="APPLICATIONROOTDIRECTORY" Name="GameIT Desktop App">
+          <Directory Id="__46ae9462_0dcc_40dc_8164_b1f7757db992" Name="app-1.0.0">
+            <Directory Id="_.git_4b7e566c_5641_4892_a089_99aa8f92d344" Name=".git">
+              <Directory Id="_.git_hooks_594a0c99_bfe3_4dbf_819f_a4ae344b2592" Name="hooks">
+                <Component Id="_.git_hooks_applypatch_msg.sample_f52c19e1_94fb_47c2_9dcb_86506749931c" Guid="abc00812-5429-4272-878a-add6d3dba4d6" Win64="no">
+                  <File Name="applypatch-msg.sample" Id="_.git_hooks_applypatch_msg.sample_f52c19e1_94fb_47c2_9dcb_86506749931c" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\hooks\applypatch-msg.sample" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_.git_hooks_commit_msg.sample_3704481a_4dbd_4563_9a23_1a89ae66ae59" Guid="6fb6e7da-31d4-4563-9c54-758f08e89151" Win64="no">
+                  <File Name="commit-msg.sample" Id="_.git_hooks_commit_msg.sample_3704481a_4dbd_4563_9a23_1a89ae66ae59" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\hooks\commit-msg.sample" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_fsmonitor_watchman.sample_42821d1d_d68b_4b9b_8b3d_34119ad1515c" Guid="0b7bb214-8ec5-4cd6-8bd8-56d0d3a03a6f" Win64="no">
+                  <File Name="fsmonitor-watchman.sample" Id="_fsmonitor_watchman.sample_42821d1d_d68b_4b9b_8b3d_34119ad1515c" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\hooks\fsmonitor-watchman.sample" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_.git_hooks_post_update.sample_f14d1758_faa6_4f7e_8336_f0035a344ba0" Guid="b72dfa3e-7d36-40e9-a62d-2eaa7ae0c5b3" Win64="no">
+                  <File Name="post-update.sample" Id="_.git_hooks_post_update.sample_f14d1758_faa6_4f7e_8336_f0035a344ba0" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\hooks\post-update.sample" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_.git_hooks_pre_applypatch.sample_450783c5_4b15_420a_81f6_7cc207cad995" Guid="cce0bb8f-443f-4649-a28c-de4017393ed6" Win64="no">
+                  <File Name="pre-applypatch.sample" Id="_.git_hooks_pre_applypatch.sample_450783c5_4b15_420a_81f6_7cc207cad995" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\hooks\pre-applypatch.sample" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_.git_hooks_pre_commit.sample_c665f9f3_9ca0_46e3_a370_dd700d7d6565" Guid="16e341ae-165c-49fb-a0a7-abdf706967d9" Win64="no">
+                  <File Name="pre-commit.sample" Id="_.git_hooks_pre_commit.sample_c665f9f3_9ca0_46e3_a370_dd700d7d6565" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\hooks\pre-commit.sample" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_.git_hooks_pre_merge_commit.sample_8cee83fa_d728_4dea_a2cc_da8daffec730" Guid="4a3933a4-da50-415e-bb6c-c38da1b5b06d" Win64="no">
+                  <File Name="pre-merge-commit.sample" Id="_.git_hooks_pre_merge_commit.sample_8cee83fa_d728_4dea_a2cc_da8daffec730" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\hooks\pre-merge-commit.sample" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_.git_hooks_pre_push.sample_99d1d669_ce18_4bca_8247_ffb26bd735a5" Guid="b0fae62b-1dd2-455d-aab8-0e9c2aa755de" Win64="no">
+                  <File Name="pre-push.sample" Id="_.git_hooks_pre_push.sample_99d1d669_ce18_4bca_8247_ffb26bd735a5" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\hooks\pre-push.sample" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_.git_hooks_pre_rebase.sample_8ccb10c9_9e8e_4b6a_96ae_180a68756a20" Guid="c5b72d95-708f-458f-ada3-7164af9eaebc" Win64="no">
+                  <File Name="pre-rebase.sample" Id="_.git_hooks_pre_rebase.sample_8ccb10c9_9e8e_4b6a_96ae_180a68756a20" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\hooks\pre-rebase.sample" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_.git_hooks_pre_receive.sample_c22682c1_9163_4d9f_ad06_c703960f17b4" Guid="702a4cbe-ae39-496e-9f08-ed20883ff104" Win64="no">
+                  <File Name="pre-receive.sample" Id="_.git_hooks_pre_receive.sample_c22682c1_9163_4d9f_ad06_c703960f17b4" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\hooks\pre-receive.sample" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_prepare_commit_msg.sample_ebdfb2f4_85de_4c36_af6f_f5982d42a6e1" Guid="d0e6b25c-cff1-4d94-9425-3460cbfa2ed4" Win64="no">
+                  <File Name="prepare-commit-msg.sample" Id="_prepare_commit_msg.sample_ebdfb2f4_85de_4c36_af6f_f5982d42a6e1" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\hooks\prepare-commit-msg.sample" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_.git_hooks_push_to_checkout.sample_268b9b51_810d_4873_8d3e_1c3f3fe034a4" Guid="03912102-7650-46cf-83af-8c1ab11fe05b" Win64="no">
+                  <File Name="push-to-checkout.sample" Id="_.git_hooks_push_to_checkout.sample_268b9b51_810d_4873_8d3e_1c3f3fe034a4" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\hooks\push-to-checkout.sample" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+                <Component Id="_.git_hooks_update.sample_775ef2f7_82fa_47eb_a044_fc234aca502c" Guid="6433e3f5-f028-4425-8434-2a56931e2ab1" Win64="no">
+                  <File Name="update.sample" Id="_.git_hooks_update.sample_775ef2f7_82fa_47eb_a044_fc234aca502c" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\hooks\update.sample" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+              </Directory>
+              <Directory Id="_.git_info_1f07d4ce_b36e_41ed_9e89_1103cdecf1da" Name="info">
+                <Component Id="_.git_info_exclude_c53cc3f2_3304_4bf7_9a6f_4a1ec323e77e" Guid="df3a5fc4-1d7c-42e2-b420-d0a25f99273f" Win64="no">
+                  <File Name="exclude" Id="_.git_info_exclude_c53cc3f2_3304_4bf7_9a6f_4a1ec323e77e" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\info\exclude" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                </Component>
+              </Directory>
+              <Directory Id="_.git_objects_595f7c63_df27_409e_8b3a_70bca6534866" Name="objects">
+                <Directory Id="_.git_objects_4b_d8457138_4633_4ccf_a7cc_dc68767b509e" Name="4b">
+                  <Component Id="_825dc642cb6eb9a060e54bf8d69288fbee_90fe045f_4e3f_4dc9_8216_8e568787c6a5" Guid="715a190e-84c3-435a-900c-4f6f03c7e28e" Win64="no">
+                    <File Name="825dc642cb6eb9a060e54bf8d69288fbee4904" Id="_825dc642cb6eb9a060e54bf8d69288fbee_90fe045f_4e3f_4dc9_8216_8e568787c6a5" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\objects\4b\825dc642cb6eb9a060e54bf8d69288fbee4904" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+                  </Component>
+                </Directory>
+                <Directory Id="_.git_objects_info_4a563230_f40c_42c1_9092_54494b6614ce" Name="info">
+
+                </Directory>
+                <Directory Id="_.git_objects_pack_2e45e799_0c7e_441f_99e6_80146765577c" Name="pack">
+
+                </Directory>
+              </Directory>
+
+              <Directory Id="_.git_refs_bbe70835_929b_45d8_9d4e_018a1695ec0f" Name="refs">
+                <Directory Id="_.git_refs_heads_503510b0_284b_485b_8003_277799bebb28" Name="heads">
+
+                </Directory>
+                <Directory Id="_.git_refs_tags_f7e27841_3a94_4d35_90ed_1bfc110662e5" Name="tags">
+
+                </Directory>
+              </Directory>
+              <Component Id="_.git_COMMIT_EDITMSG_92d840c1_b573_4dfa_83fe_a106bdae6aa0" Guid="11e3c0f3-40da-41f6-bf8e-0867e9f0f301" Win64="no">
+                <File Name="COMMIT_EDITMSG" Id="_.git_COMMIT_EDITMSG_92d840c1_b573_4dfa_83fe_a106bdae6aa0" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\COMMIT_EDITMSG" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_.git_HEAD_f310de1d_8f3a_448f_b4e1_f618d42bc03c" Guid="391d17d1-0f41-4cdb-9d0f-b8fb262625f1" Win64="no">
+                <File Name="HEAD" Id="_.git_HEAD_f310de1d_8f3a_448f_b4e1_f618d42bc03c" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\HEAD" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_.git_config_e1114623_1274_4b99_924e_314b07236610" Guid="5e7737d9-b053-40f8-9fa2-e2907489027e" Win64="no">
+                <File Name="config" Id="_.git_config_e1114623_1274_4b99_924e_314b07236610" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\config" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_.git_description_1820c1e6_37c7_440a_9418_9b991e019b89" Guid="4d0e2e6e-f836-4e69-bb16-31fdbed642a7" Win64="no">
+                <File Name="description" Id="_.git_description_1820c1e6_37c7_440a_9418_9b991e019b89" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\description" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_.git_index_c50edde4_db84_4c6f_90a7_f38db043b880" Guid="5467e7ea-a8b2-48c8-8bee-227934f4005b" Win64="no">
+                <File Name="index" Id="_.git_index_c50edde4_db84_4c6f_90a7_f38db043b880" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\.git\index" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+            </Directory>
+
+            <Directory Id="_locales_4e135e6a_f3ba_48b7_851b_df5f610d5411" Name="locales">
+              <Component Id="_locales_af.pak_b9c97136_8602_447e_8135_03ad830c9c15" Guid="55bcdd3b-867e-4623-92d9-dcf5e321ca10" Win64="no">
+                <File Name="af.pak" Id="_locales_af.pak_b9c97136_8602_447e_8135_03ad830c9c15" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\af.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_am.pak_c60f8129_678d_4049_b078_4ba86415aebb" Guid="5763ddd5-b4ea-45c1-9637-642ccb511cce" Win64="no">
+                <File Name="am.pak" Id="_locales_am.pak_c60f8129_678d_4049_b078_4ba86415aebb" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\am.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ar.pak_8a2256c4_3f3e_4e87_95db_d322cce1c5ee" Guid="909a925d-09dd-4a07-a6a4-c78b864c708a" Win64="no">
+                <File Name="ar.pak" Id="_locales_ar.pak_8a2256c4_3f3e_4e87_95db_d322cce1c5ee" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\ar.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_bg.pak_baa8ff47_35f4_47e7_8282_41b829920d3f" Guid="c7285bb5-3d7a-432c-97b7-588b76829b29" Win64="no">
+                <File Name="bg.pak" Id="_locales_bg.pak_baa8ff47_35f4_47e7_8282_41b829920d3f" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\bg.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_bn.pak_203c0d2d_e2f7_4677_9961_4abae623f240" Guid="f36497d0-3981-47ae-b139-0ffab6b05c24" Win64="no">
+                <File Name="bn.pak" Id="_locales_bn.pak_203c0d2d_e2f7_4677_9961_4abae623f240" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\bn.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ca.pak_d1e89dde_ba55_47bf_897b_5b5d9150b0a8" Guid="9499ce8b-3cda-4e06-bf33-3e01f67ab255" Win64="no">
+                <File Name="ca.pak" Id="_locales_ca.pak_d1e89dde_ba55_47bf_897b_5b5d9150b0a8" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\ca.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_cs.pak_05ccad67_1da3_417d_a3ed_c48df1f1fc60" Guid="ea2ee592-fde9-44b6-956c-4d056bba9bc8" Win64="no">
+                <File Name="cs.pak" Id="_locales_cs.pak_05ccad67_1da3_417d_a3ed_c48df1f1fc60" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\cs.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_da.pak_d00da39e_364d_443c_950a_ddbe9673370a" Guid="a06e8d8d-adaa-47ab-8d83-730ed346782b" Win64="no">
+                <File Name="da.pak" Id="_locales_da.pak_d00da39e_364d_443c_950a_ddbe9673370a" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\da.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_de.pak_8c3b355b_efcd_4a6b_914d_e6dc452c11dc" Guid="57a6f5b1-1e0c-456b-b3fe-52f4b45fbd6a" Win64="no">
+                <File Name="de.pak" Id="_locales_de.pak_8c3b355b_efcd_4a6b_914d_e6dc452c11dc" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\de.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_el.pak_7428ba81_bb36_4425_a4bd_e580df2bf9ab" Guid="e337ac29-e32b-4ba7-b386-01afc8e8d602" Win64="no">
+                <File Name="el.pak" Id="_locales_el.pak_7428ba81_bb36_4425_a4bd_e580df2bf9ab" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\el.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_en_GB.pak_757d3f7a_8b0c_48d7_aea4_64eb06a0e31b" Guid="49f63736-a665-4dcf-b7f3-0272f0396f5b" Win64="no">
+                <File Name="en-GB.pak" Id="_locales_en_GB.pak_757d3f7a_8b0c_48d7_aea4_64eb06a0e31b" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\en-GB.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_en_US.pak_93cfdba6_0b92_4fab_8093_37487a936e0e" Guid="b87cd3e8-4012-4c12-a76b-404aa9bfa72d" Win64="no">
+                <File Name="en-US.pak" Id="_locales_en_US.pak_93cfdba6_0b92_4fab_8093_37487a936e0e" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\en-US.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_es_419.pak_45e28c9e_fc9b_4fb0_9e59_434b0b180573" Guid="c1622eb1-aee1-49bb-903c-d72a6330d768" Win64="no">
+                <File Name="es-419.pak" Id="_locales_es_419.pak_45e28c9e_fc9b_4fb0_9e59_434b0b180573" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\es-419.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_es.pak_2c99966e_0e5f_490c_a244_c9ceb72041b4" Guid="acee59c6-fdf6-43a6-8c6c-2073a67e6d7b" Win64="no">
+                <File Name="es.pak" Id="_locales_es.pak_2c99966e_0e5f_490c_a244_c9ceb72041b4" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\es.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_et.pak_19a48c5c_f806_4e09_be0e_9b7b68738854" Guid="766f3921-c187-49d6-805c-33bae676fe81" Win64="no">
+                <File Name="et.pak" Id="_locales_et.pak_19a48c5c_f806_4e09_be0e_9b7b68738854" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\et.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_fa.pak_126e534e_7d50_4292_a3ba_1ae6b12ddf39" Guid="de24a45f-78f1-4fcc-a649-d7e38e636000" Win64="no">
+                <File Name="fa.pak" Id="_locales_fa.pak_126e534e_7d50_4292_a3ba_1ae6b12ddf39" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\fa.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_fi.pak_ab603de1_4acf_4a9a_ad41_3c68905aae3d" Guid="c97dc6f7-ab43-45e5-8a90-e24220762006" Win64="no">
+                <File Name="fi.pak" Id="_locales_fi.pak_ab603de1_4acf_4a9a_ad41_3c68905aae3d" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\fi.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_fil.pak_96e1d340_5657_482c_ad15_97ebb346af79" Guid="2f140ae8-f516-4015-b7ca-2f32089c0110" Win64="no">
+                <File Name="fil.pak" Id="_locales_fil.pak_96e1d340_5657_482c_ad15_97ebb346af79" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\fil.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_fr.pak_9d5b7325_d15a_4bcd_8c0e_d257ae251230" Guid="e004b0cd-c524-4ce3-b0ca-917bf7e20168" Win64="no">
+                <File Name="fr.pak" Id="_locales_fr.pak_9d5b7325_d15a_4bcd_8c0e_d257ae251230" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\fr.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_gu.pak_af4506b9_9026_4295_b278_e6a781311809" Guid="a119f124-7ce2-40e0-920e-1401eded8a47" Win64="no">
+                <File Name="gu.pak" Id="_locales_gu.pak_af4506b9_9026_4295_b278_e6a781311809" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\gu.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_he.pak_28f94a70_fd16_46fb_ac55_8b1de329b8b9" Guid="2de9a545-7052-4161-8753-7f1550604d2a" Win64="no">
+                <File Name="he.pak" Id="_locales_he.pak_28f94a70_fd16_46fb_ac55_8b1de329b8b9" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\he.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_hi.pak_1ad5acc9_4e73_403c_9013_8dfac212dd8a" Guid="ba5986eb-feea-4f27-99e2-0f4304faa5ad" Win64="no">
+                <File Name="hi.pak" Id="_locales_hi.pak_1ad5acc9_4e73_403c_9013_8dfac212dd8a" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\hi.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_hr.pak_cf821cf8_8501_46c8_b5b2_4054ab7e2b68" Guid="e4f98c30-c87c-4b5c-a759-bf6a3668c012" Win64="no">
+                <File Name="hr.pak" Id="_locales_hr.pak_cf821cf8_8501_46c8_b5b2_4054ab7e2b68" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\hr.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_hu.pak_41cb76c7_bf54_4f68_8ae5_ca8c0b860968" Guid="65d4c558-ec81-48c1-be3d-aa8943236a3a" Win64="no">
+                <File Name="hu.pak" Id="_locales_hu.pak_41cb76c7_bf54_4f68_8ae5_ca8c0b860968" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\hu.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_id.pak_88f6a774_0432_4ce9_bb01_86c60e14dbb3" Guid="5cb9fa42-db3b-4e60-8aea-26937208a420" Win64="no">
+                <File Name="id.pak" Id="_locales_id.pak_88f6a774_0432_4ce9_bb01_86c60e14dbb3" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\id.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_it.pak_dc582eb8_8403_4194_a7b1_7bf0b9a843f1" Guid="c8e41c10-eb19-41be-a74a-4a1d834e5ef4" Win64="no">
+                <File Name="it.pak" Id="_locales_it.pak_dc582eb8_8403_4194_a7b1_7bf0b9a843f1" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\it.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ja.pak_2bcd17d2_3d5a_4ba1_b973_8651e242b260" Guid="1e01ff70-0a27-49f0-a365-1495ffb16543" Win64="no">
+                <File Name="ja.pak" Id="_locales_ja.pak_2bcd17d2_3d5a_4ba1_b973_8651e242b260" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\ja.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_kn.pak_06d80a22_1361_4eda_b8b9_b552e49c9ef4" Guid="cf5fa038-ef11-44f4-82f4-047a7236aa49" Win64="no">
+                <File Name="kn.pak" Id="_locales_kn.pak_06d80a22_1361_4eda_b8b9_b552e49c9ef4" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\kn.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ko.pak_b608d390_7846_469e_a6e8_7c94d01d41ca" Guid="cdd49bf4-9f6e-4e52-ac0e-9b1a197ffaa9" Win64="no">
+                <File Name="ko.pak" Id="_locales_ko.pak_b608d390_7846_469e_a6e8_7c94d01d41ca" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\ko.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_lt.pak_59b65d78_534c_4918_9c42_751bf94da022" Guid="2f7912b2-107d-4bf4-b1f6-d92f14fb886e" Win64="no">
+                <File Name="lt.pak" Id="_locales_lt.pak_59b65d78_534c_4918_9c42_751bf94da022" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\lt.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_lv.pak_0291c9f8_4025_4efb_8c67_8e722b18bbe4" Guid="4efaade6-4446-4937-a35a-c8a0e1d8b461" Win64="no">
+                <File Name="lv.pak" Id="_locales_lv.pak_0291c9f8_4025_4efb_8c67_8e722b18bbe4" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\lv.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ml.pak_ebcf901d_6afe_43d7_9d43_d574b6dec08c" Guid="24bf9fe0-68b3-40a4-a12b-7505ca461b0b" Win64="no">
+                <File Name="ml.pak" Id="_locales_ml.pak_ebcf901d_6afe_43d7_9d43_d574b6dec08c" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\ml.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_mr.pak_cf986ed2_f3ef_45b5_b590_157443cac818" Guid="7fe5f314-1eae-4ab2-b1a5-282927fd5cc5" Win64="no">
+                <File Name="mr.pak" Id="_locales_mr.pak_cf986ed2_f3ef_45b5_b590_157443cac818" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\mr.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ms.pak_ae7d588e_6c32_44f5_93ef_8bffd365c8c3" Guid="0ba5621b-5d7f-4ad5-8a3c-edb6d087eb42" Win64="no">
+                <File Name="ms.pak" Id="_locales_ms.pak_ae7d588e_6c32_44f5_93ef_8bffd365c8c3" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\ms.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_nb.pak_20da561d_d2a3_4d3b_b86e_28061698cdd2" Guid="184b162a-4aef-410a-9586-dd4ff4b82bc2" Win64="no">
+                <File Name="nb.pak" Id="_locales_nb.pak_20da561d_d2a3_4d3b_b86e_28061698cdd2" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\nb.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_nl.pak_e8b68c96_be0b_4d68_a125_078a7c572b5e" Guid="bc884cd8-ac3f-477c-b3c3-6587dfa78e2e" Win64="no">
+                <File Name="nl.pak" Id="_locales_nl.pak_e8b68c96_be0b_4d68_a125_078a7c572b5e" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\nl.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_pl.pak_f26aa2dd_da5a_4690_9f22_336fff7174ef" Guid="1fa125c2-ecc4-4c00-9a3b-6669ac92ff1b" Win64="no">
+                <File Name="pl.pak" Id="_locales_pl.pak_f26aa2dd_da5a_4690_9f22_336fff7174ef" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\pl.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_pt_BR.pak_6125c4c8_05e9_491e_9167_50352406f859" Guid="6526c2df-568e-4e1d-a460-3abeb900452d" Win64="no">
+                <File Name="pt-BR.pak" Id="_locales_pt_BR.pak_6125c4c8_05e9_491e_9167_50352406f859" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\pt-BR.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_pt_PT.pak_3655a15b_0e0b_4a92_b8d5_b88a54fbd17f" Guid="7c8007c3-dd8e-46c0-b01d-091d301ccaf1" Win64="no">
+                <File Name="pt-PT.pak" Id="_locales_pt_PT.pak_3655a15b_0e0b_4a92_b8d5_b88a54fbd17f" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\pt-PT.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ro.pak_3ae1da1e_5b04_4a73_8a0b_0f8e139da959" Guid="49b71bef-da93-41f4-bb94-79dc7d830920" Win64="no">
+                <File Name="ro.pak" Id="_locales_ro.pak_3ae1da1e_5b04_4a73_8a0b_0f8e139da959" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\ro.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ru.pak_acf3671a_d495_4a47_845d_16df3cb92328" Guid="57ba113b-f079-4c70-b2de-ebc3b4bdd073" Win64="no">
+                <File Name="ru.pak" Id="_locales_ru.pak_acf3671a_d495_4a47_845d_16df3cb92328" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\ru.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_sk.pak_0e0e7521_04ca_4f6c_b05e_90ea5731cec2" Guid="ff36242d-042a-4af4-956a-60a3aba8a1a0" Win64="no">
+                <File Name="sk.pak" Id="_locales_sk.pak_0e0e7521_04ca_4f6c_b05e_90ea5731cec2" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\sk.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_sl.pak_32495314_f2f9_462f_aca8_a26493854851" Guid="c54a73b3-38a7-4fe5-bd74-1baf730c6f18" Win64="no">
+                <File Name="sl.pak" Id="_locales_sl.pak_32495314_f2f9_462f_aca8_a26493854851" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\sl.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_sr.pak_a3c77b0f_5920_4f36_af9b_7f61eeffedea" Guid="4ecad9b5-44bb-4eb8-8e50-c1c1780c2057" Win64="no">
+                <File Name="sr.pak" Id="_locales_sr.pak_a3c77b0f_5920_4f36_af9b_7f61eeffedea" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\sr.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_sv.pak_8745e8a9_7459_4c9b_b971_2130c4a924a9" Guid="114c96bd-82c4-4cf4-a8a8-c1910215985d" Win64="no">
+                <File Name="sv.pak" Id="_locales_sv.pak_8745e8a9_7459_4c9b_b971_2130c4a924a9" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\sv.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_sw.pak_f09dd193_62ea_4311_bb95_d268d8a40366" Guid="51179081-82b9-4a47-b3c3-7a6f5f537053" Win64="no">
+                <File Name="sw.pak" Id="_locales_sw.pak_f09dd193_62ea_4311_bb95_d268d8a40366" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\sw.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ta.pak_63cafdb2_d403_4c79_8c27_87cfe7ef4336" Guid="5495b97a-9d46-4da5-9e19-f868695eabf9" Win64="no">
+                <File Name="ta.pak" Id="_locales_ta.pak_63cafdb2_d403_4c79_8c27_87cfe7ef4336" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\ta.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_te.pak_659f53c8_0c8f_4406_bbf0_2e60b8a2e4a4" Guid="95bac083-6ecb-4843-a7d9-d4eb5a54d100" Win64="no">
+                <File Name="te.pak" Id="_locales_te.pak_659f53c8_0c8f_4406_bbf0_2e60b8a2e4a4" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\te.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_th.pak_9d744c0d_dc40_410a_85b3_702cf2364518" Guid="e96ac43e-9170-4c19-a834-0374455a49e0" Win64="no">
+                <File Name="th.pak" Id="_locales_th.pak_9d744c0d_dc40_410a_85b3_702cf2364518" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\th.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_tr.pak_9300101d_b64c_471d_a56e_6988ac6a998e" Guid="befad95a-b9c1-4144-9adb-06abc192326f" Win64="no">
+                <File Name="tr.pak" Id="_locales_tr.pak_9300101d_b64c_471d_a56e_6988ac6a998e" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\tr.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_uk.pak_4b535ede_c1d8_46e6_afa5_68e00b220b70" Guid="68562a9f-45c6-4ae9-9ee6-9b9af2db0201" Win64="no">
+                <File Name="uk.pak" Id="_locales_uk.pak_4b535ede_c1d8_46e6_afa5_68e00b220b70" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\uk.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_ur.pak_edaf065f_1ff4_45ca_98c4_d598910e0bf8" Guid="b4e177d0-2cc0-450a-82d9-12ee9548f607" Win64="no">
+                <File Name="ur.pak" Id="_locales_ur.pak_edaf065f_1ff4_45ca_98c4_d598910e0bf8" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\ur.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_vi.pak_d91b7303_779e_4f9d_aa5d_4754bce97af1" Guid="f2535086-429b-4aa0-8041-022e61873756" Win64="no">
+                <File Name="vi.pak" Id="_locales_vi.pak_d91b7303_779e_4f9d_aa5d_4754bce97af1" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\vi.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_zh_CN.pak_29cc053e_b6d9_4417_a411_a8ba1b8d986e" Guid="a9f30938-787b-464b-867f-a6954ac0b543" Win64="no">
+                <File Name="zh-CN.pak" Id="_locales_zh_CN.pak_29cc053e_b6d9_4417_a411_a8ba1b8d986e" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\zh-CN.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+              <Component Id="_locales_zh_TW.pak_63d7d405_3e34_4215_8753_5ddf88cc572e" Guid="8819fab0-0c53-44b6-8ef2-c71c92b692bc" Win64="no">
+                <File Name="zh-TW.pak" Id="_locales_zh_TW.pak_63d7d405_3e34_4215_8753_5ddf88cc572e" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\locales\zh-TW.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+            </Directory>
+            <Directory Id="_resources_0cdd9bb4_d8f0_4158_86be_05b377e945d1" Name="resources">
+              <Component Id="_resources_app.asar_d922b8d6_9523_4084_b24e_cf3ad5b1a093" Guid="710c92e8-d364-495a-9daf-6605c2f6785c" Win64="no">
+                <File Name="app.asar" Id="_resources_app.asar_d922b8d6_9523_4084_b24e_cf3ad5b1a093" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\resources\app.asar" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+              </Component>
+            </Directory>            <Component Id="_GameIT.exe_4c359004_3798_46da_bf45_a63dc12919af" Guid="cf2355e4-1458-4716-872f-f7d383aab745" Win64="no">
+              <File Name="GameIT.exe" Id="_GameIT.exe_4c359004_3798_46da_bf45_a63dc12919af" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\GameIT.exe" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_LICENSE_9abf1d5a_4f33_4fe0_95d3_779ad6a99437" Guid="1332ec9e-5efb-44be-a629-dd33d918c01e" Win64="no">
+              <File Name="LICENSE" Id="_LICENSE_9abf1d5a_4f33_4fe0_95d3_779ad6a99437" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\LICENSE" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_LICENSES.chromium.html_3cdc9f99_927e_4055_8ac8_0875176b6ee9" Guid="844d2d5c-4320-4eb6-9d29-105bfc082587" Win64="no">
+              <File Name="LICENSES.chromium.html" Id="_LICENSES.chromium.html_3cdc9f99_927e_4055_8ac8_0875176b6ee9" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\LICENSES.chromium.html" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_chrome_100_percent.pak_02acf2b7_1ad1_45c5_8c3e_5268584dd21c" Guid="db1ea7c5-0325-4379-8a2e-c7548977697e" Win64="no">
+              <File Name="chrome_100_percent.pak" Id="_chrome_100_percent.pak_02acf2b7_1ad1_45c5_8c3e_5268584dd21c" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\chrome_100_percent.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_chrome_200_percent.pak_f3446945_972a_4125_a4b2_555f536c03cd" Guid="e5121145-a73e-4140-98fa-f194525a9e7a" Win64="no">
+              <File Name="chrome_200_percent.pak" Id="_chrome_200_percent.pak_f3446945_972a_4125_a4b2_555f536c03cd" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\chrome_200_percent.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_d3dcompiler_47.dll_fc2aa09a_e78c_4c2d_b432_3b921bff3448" Guid="96878fc9-ce00-4a4b-a016-4385cdbb0163" Win64="no">
+              <File Name="d3dcompiler_47.dll" Id="_d3dcompiler_47.dll_fc2aa09a_e78c_4c2d_b432_3b921bff3448" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\d3dcompiler_47.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_ffmpeg.dll_33c14836_afe3_40ed_9231_f0c09a7f54a6" Guid="afdca6b1-b983-43ba-8f7c-77d956430a2f" Win64="no">
+              <File Name="ffmpeg.dll" Id="_ffmpeg.dll_33c14836_afe3_40ed_9231_f0c09a7f54a6" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\ffmpeg.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_icudtl.dat_2e75fc3e_ca30_4dab_a780_bdd205fd843c" Guid="19490b63-09a8-4ce6-82a5-dddf1cebed75" Win64="no">
+              <File Name="icudtl.dat" Id="_icudtl.dat_2e75fc3e_ca30_4dab_a780_bdd205fd843c" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\icudtl.dat" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_libEGL.dll_7db818d1_e1c3_442a_b33c_6d6327b00e61" Guid="bbac2bb6-ad44-4d71-b747-72cf92939ab9" Win64="no">
+              <File Name="libEGL.dll" Id="_libEGL.dll_7db818d1_e1c3_442a_b33c_6d6327b00e61" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\libEGL.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_libGLESv2.dll_072c0b25_26df_471a_a446_2318eac954e6" Guid="a10e29fb-6dac-4e07-91ab-4aa01a64817d" Win64="no">
+              <File Name="libGLESv2.dll" Id="_libGLESv2.dll_072c0b25_26df_471a_a446_2318eac954e6" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\libGLESv2.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_resources.pak_73464d1d_7295_471a_9919_22e243f31771" Guid="47f8c764-be20-4daf-8289-ec147aa155a5" Win64="no">
+              <File Name="resources.pak" Id="_resources.pak_73464d1d_7295_471a_9919_22e243f31771" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\resources.pak" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_snapshot_blob.bin_f7622bc9_ce53_4fa4_929f_1ab694a9ecda" Guid="88f7e81e-71c7-472a-83f4-cc1644328010" Win64="no">
+              <File Name="snapshot_blob.bin" Id="_snapshot_blob.bin_f7622bc9_ce53_4fa4_929f_1ab694a9ecda" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\snapshot_blob.bin" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_v8_context_snapshot.bin_981bb6e0_6ece_4e62_b5fe_ccf16673bdf8" Guid="ee78a309-b311-43dc-b3a5-1e44b7f9e78e" Win64="no">
+              <File Name="v8_context_snapshot.bin" Id="_v8_context_snapshot.bin_981bb6e0_6ece_4e62_b5fe_ccf16673bdf8" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\v8_context_snapshot.bin" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_version_e76b3496_4172_485d_aab8_e791cd86f77b" Guid="98cffaba-fd1e-4e73-8ca4-f6016458f093" Win64="no">
+              <File Name="version" Id="_version_e76b3496_4172_485d_aab8_e791cd86f77b" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\version" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_vk_swiftshader.dll_b9d00506_cb66_4205_9a20_6be0eaa85000" Guid="c688afc0-0d4c-4eac-bc0f-246ebfa3f533" Win64="no">
+              <File Name="vk_swiftshader.dll" Id="_vk_swiftshader.dll_b9d00506_cb66_4205_9a20_6be0eaa85000" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\vk_swiftshader.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_vk_swiftshader_icd.json_18dc0e25_a99b_43e7_9cc3_cae0d48a6e59" Guid="7793220f-8711-4300-98da-d3cc068303ab" Win64="no">
+              <File Name="vk_swiftshader_icd.json" Id="_vk_swiftshader_icd.json_18dc0e25_a99b_43e7_9cc3_cae0d48a6e59" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\vk_swiftshader_icd.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+            <Component Id="_vulkan_1.dll_7124b82a_3588_4b32_aa9a_9006e111a460" Guid="6b154949-85c9-4d3c-b5a3-bd2dd9afb552" Win64="no">
+              <File Name="vulkan-1.dll" Id="_vulkan_1.dll_7124b82a_3588_4b32_aa9a_9006e111a460" Source="C:\Users\HugoR\OneDrive\Skrivbord\electron-webview\release-builds\GameIT-win32-ia32\vulkan-1.dll" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+            </Component>
+          </Directory>
+          <Component Id="_GameIT.exe_03ab89f9_f548_40ea_bdfe_5e38db19a0e3" Guid="53caa01c-a02f-4f4e-b7ac-1fefd8acc32a" Win64="no">
+            <File Name="GameIT.exe" Id="_GameIT.exe_03ab89f9_f548_40ea_bdfe_5e38db19a0e3" Source="C:\Users\HugoR\AppData\Local\Temp\GameIT6dulOL\GameIT.exe" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+          </Component>
+          <Component Id="_.installInfo.json_f3ae1183_9bb1_4a24_a329_3bc4df59970e" Guid="028290f7-5bc7-40c2-834d-f789a58b0dc0" Win64="no">
+            <File Name=".installInfo.json" Id="_.installInfo.json_f3ae1183_9bb1_4a24_a329_3bc4df59970e" Source="C:\Users\HugoR\AppData\Local\Temp\.installInfoDn2gRP\.installInfo.json" KeyPath="yes" Checksum="yes" ProcessorArchitecture="x86"/>
+          </Component>
+          <Component Id="RegistryInstallPath" Guid="ed9cb8d3-98e5-4321-a1aa-50379ede9067" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7BC4AB2E-2739-4345-A981-5E976739B0BA}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="InstallPath" Type="string" Value="[APPLICATIONROOTDIRECTORY]" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+          <Component Id="UninstallDisplayName" Guid="74e27689-b5e9-4e40-9a54-1f07aad69ed9" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7BC4AB2E-2739-4345-A981-5E976739B0BA}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="DisplayName" Type="string" Value="[VisibleProductName]" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+          <Component Id="UninstallPublisher" Guid="7f977274-1fe0-4da9-92a2-4e4bcbcf8e9f" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7BC4AB2E-2739-4345-A981-5E976739B0BA}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="Publisher" Type="string" Value="Odero AB" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+          <Component Id="UninstallDisplayVersion" Guid="92b62ca7-4742-41ee-9686-42517986c9a3" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7BC4AB2E-2739-4345-A981-5E976739B0BA}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="DisplayVersion" Type="string" Value="1.0.0" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+          <Component Id="UninstallModifyString" Guid="c6cd1648-74bb-46bf-9e1a-d15b3ca03630" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7BC4AB2E-2739-4345-A981-5E976739B0BA}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="ModifyPath" Type="expandable" Value="MsiExec.exe /I {7BC4AB2E-2739-4345-A981-5E976739B0BA}" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+          <Component Id="UninstallString" Guid="5887fb7a-8700-47ea-b81a-95c5b8981314" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7BC4AB2E-2739-4345-A981-5E976739B0BA}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="UninstallString" Type="expandable" Value="MsiExec.exe /X {7BC4AB2E-2739-4345-A981-5E976739B0BA}" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+          <Component Id="UninstallDisplayIcon" Guid="9177be77-820d-40ec-b6fc-edfe10ad9e3d" Win64="no">
+            <RegistryKey Root="HKMU" Key="SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\{7BC4AB2E-2739-4345-A981-5E976739B0BA}.msq" ForceCreateOnInstall="no" ForceDeleteOnUninstall="yes">
+              <RegistryValue Name="DisplayIcon" Type="expandable" Value="[SystemFolder]msiexec.exe" KeyPath="yes"/>
+            </RegistryKey>
+          </Component>
+        </Directory>
+      </Directory>
+
+      <!-- Desktop -->
+      <Directory Id="DesktopFolder" Name="Desktop" />
+
+      <!-- Start Menu -->
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="Odero AB"/>
+      </Directory>
+    </Directory>
+
+    <!-- Step 3: Add app to Start Menu -->
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcut" Guid="ef4fde6c-5c7f-4c91-9dd3-2c076b4fb72d" Win64="no">
+        <Shortcut Id="ApplicationStartMenuShortcut"
+                  Name="GameIT Desktop App"
+                  Description="GameIT Desktop App v1"
+                  Target="[APPLICATIONROOTDIRECTORY]GameIT.exe"
+                  WorkingDirectory="APPLICATIONROOTDIRECTORY">
+          <ShortcutProperty Key="System.AppUserModel.ID" Value="com.squirrel.gameit desktop app.gameit"/>
+        </Shortcut>
+        <RemoveFolder Id="ApplicationProgramsFolder" On="uninstall"/>
+        <RegistryValue Root="HKCU"
+                       Key="Software\Microsoft\GameIT Desktop App"
+                       Name="installed"
+                       Type="integer"
+                       Value="1"
+                       KeyPath="yes"/>
+      </Component>
+    </DirectoryRef>
+
+   <!-- Step 4: Add app desktop shortcut --> 
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="f738782d-1169-49c7-8d6f-1d03fab9ba42" >
+          <Shortcut Id="MyDesktopShortcut"
+                    Name="GameIT Desktop App"
+                    Description="GameIT Desktop App v1"
+                    Target="[APPLICATIONROOTDIRECTORY]GameIT.exe"
+                    WorkingDirectory="APPLICATIONROOTDIRECTORY"/>
+          <RegistryValue Root="HKCU"
+                    Key="Software\Microsoft\GameIT Desktop App"
+                    Name="installed"
+                    Type="integer"
+                    Value="1"
+                    KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+
+    <!-- Lets cleanup any files that are were not part of the initial install
+    via this MSI. Such as newer versions installed by the auto-updater. -->
+    <DirectoryRef Id="APPLICATIONROOTDIRECTORY">
+      <Component Id="PurgeOnUninstall" Guid="01f39863-1c27-4fe4-b3df-f9aceaba6506" Win64="no">
+        <CreateFolder/>
+        <util:RemoveFolderEx On="uninstall" Property="INSTALLPATH" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="Complete" Title="GameIT Desktop App (1.0.0)" Description="The complete package." Display="expand" Level="1" ConfigurableDirectory="APPLICATIONROOTDIRECTORY">
+      <!-- Step 5: Tell WiX to install the files -->
+      <Feature Id="MainApplication" Title="Main Application" Level="1" Description="The main components to run the applications." >
+        <ComponentRef Id="_.git_hooks_applypatch_msg.sample_f52c19e1_94fb_47c2_9dcb_86506749931c" />
+        <ComponentRef Id="_.git_hooks_commit_msg.sample_3704481a_4dbd_4563_9a23_1a89ae66ae59" />
+        <ComponentRef Id="_fsmonitor_watchman.sample_42821d1d_d68b_4b9b_8b3d_34119ad1515c" />
+        <ComponentRef Id="_.git_hooks_post_update.sample_f14d1758_faa6_4f7e_8336_f0035a344ba0" />
+        <ComponentRef Id="_.git_hooks_pre_applypatch.sample_450783c5_4b15_420a_81f6_7cc207cad995" />
+        <ComponentRef Id="_.git_hooks_pre_commit.sample_c665f9f3_9ca0_46e3_a370_dd700d7d6565" />
+        <ComponentRef Id="_.git_hooks_pre_merge_commit.sample_8cee83fa_d728_4dea_a2cc_da8daffec730" />
+        <ComponentRef Id="_.git_hooks_pre_push.sample_99d1d669_ce18_4bca_8247_ffb26bd735a5" />
+        <ComponentRef Id="_.git_hooks_pre_rebase.sample_8ccb10c9_9e8e_4b6a_96ae_180a68756a20" />
+        <ComponentRef Id="_.git_hooks_pre_receive.sample_c22682c1_9163_4d9f_ad06_c703960f17b4" />
+        <ComponentRef Id="_prepare_commit_msg.sample_ebdfb2f4_85de_4c36_af6f_f5982d42a6e1" />
+        <ComponentRef Id="_.git_hooks_push_to_checkout.sample_268b9b51_810d_4873_8d3e_1c3f3fe034a4" />
+        <ComponentRef Id="_.git_hooks_update.sample_775ef2f7_82fa_47eb_a044_fc234aca502c" />
+        <ComponentRef Id="_.git_info_exclude_c53cc3f2_3304_4bf7_9a6f_4a1ec323e77e" />
+        <ComponentRef Id="_825dc642cb6eb9a060e54bf8d69288fbee_90fe045f_4e3f_4dc9_8216_8e568787c6a5" />
+        <ComponentRef Id="_.git_COMMIT_EDITMSG_92d840c1_b573_4dfa_83fe_a106bdae6aa0" />
+        <ComponentRef Id="_.git_HEAD_f310de1d_8f3a_448f_b4e1_f618d42bc03c" />
+        <ComponentRef Id="_.git_config_e1114623_1274_4b99_924e_314b07236610" />
+        <ComponentRef Id="_.git_description_1820c1e6_37c7_440a_9418_9b991e019b89" />
+        <ComponentRef Id="_.git_index_c50edde4_db84_4c6f_90a7_f38db043b880" />
+        <ComponentRef Id="_locales_af.pak_b9c97136_8602_447e_8135_03ad830c9c15" />
+        <ComponentRef Id="_locales_am.pak_c60f8129_678d_4049_b078_4ba86415aebb" />
+        <ComponentRef Id="_locales_ar.pak_8a2256c4_3f3e_4e87_95db_d322cce1c5ee" />
+        <ComponentRef Id="_locales_bg.pak_baa8ff47_35f4_47e7_8282_41b829920d3f" />
+        <ComponentRef Id="_locales_bn.pak_203c0d2d_e2f7_4677_9961_4abae623f240" />
+        <ComponentRef Id="_locales_ca.pak_d1e89dde_ba55_47bf_897b_5b5d9150b0a8" />
+        <ComponentRef Id="_locales_cs.pak_05ccad67_1da3_417d_a3ed_c48df1f1fc60" />
+        <ComponentRef Id="_locales_da.pak_d00da39e_364d_443c_950a_ddbe9673370a" />
+        <ComponentRef Id="_locales_de.pak_8c3b355b_efcd_4a6b_914d_e6dc452c11dc" />
+        <ComponentRef Id="_locales_el.pak_7428ba81_bb36_4425_a4bd_e580df2bf9ab" />
+        <ComponentRef Id="_locales_en_GB.pak_757d3f7a_8b0c_48d7_aea4_64eb06a0e31b" />
+        <ComponentRef Id="_locales_en_US.pak_93cfdba6_0b92_4fab_8093_37487a936e0e" />
+        <ComponentRef Id="_locales_es_419.pak_45e28c9e_fc9b_4fb0_9e59_434b0b180573" />
+        <ComponentRef Id="_locales_es.pak_2c99966e_0e5f_490c_a244_c9ceb72041b4" />
+        <ComponentRef Id="_locales_et.pak_19a48c5c_f806_4e09_be0e_9b7b68738854" />
+        <ComponentRef Id="_locales_fa.pak_126e534e_7d50_4292_a3ba_1ae6b12ddf39" />
+        <ComponentRef Id="_locales_fi.pak_ab603de1_4acf_4a9a_ad41_3c68905aae3d" />
+        <ComponentRef Id="_locales_fil.pak_96e1d340_5657_482c_ad15_97ebb346af79" />
+        <ComponentRef Id="_locales_fr.pak_9d5b7325_d15a_4bcd_8c0e_d257ae251230" />
+        <ComponentRef Id="_locales_gu.pak_af4506b9_9026_4295_b278_e6a781311809" />
+        <ComponentRef Id="_locales_he.pak_28f94a70_fd16_46fb_ac55_8b1de329b8b9" />
+        <ComponentRef Id="_locales_hi.pak_1ad5acc9_4e73_403c_9013_8dfac212dd8a" />
+        <ComponentRef Id="_locales_hr.pak_cf821cf8_8501_46c8_b5b2_4054ab7e2b68" />
+        <ComponentRef Id="_locales_hu.pak_41cb76c7_bf54_4f68_8ae5_ca8c0b860968" />
+        <ComponentRef Id="_locales_id.pak_88f6a774_0432_4ce9_bb01_86c60e14dbb3" />
+        <ComponentRef Id="_locales_it.pak_dc582eb8_8403_4194_a7b1_7bf0b9a843f1" />
+        <ComponentRef Id="_locales_ja.pak_2bcd17d2_3d5a_4ba1_b973_8651e242b260" />
+        <ComponentRef Id="_locales_kn.pak_06d80a22_1361_4eda_b8b9_b552e49c9ef4" />
+        <ComponentRef Id="_locales_ko.pak_b608d390_7846_469e_a6e8_7c94d01d41ca" />
+        <ComponentRef Id="_locales_lt.pak_59b65d78_534c_4918_9c42_751bf94da022" />
+        <ComponentRef Id="_locales_lv.pak_0291c9f8_4025_4efb_8c67_8e722b18bbe4" />
+        <ComponentRef Id="_locales_ml.pak_ebcf901d_6afe_43d7_9d43_d574b6dec08c" />
+        <ComponentRef Id="_locales_mr.pak_cf986ed2_f3ef_45b5_b590_157443cac818" />
+        <ComponentRef Id="_locales_ms.pak_ae7d588e_6c32_44f5_93ef_8bffd365c8c3" />
+        <ComponentRef Id="_locales_nb.pak_20da561d_d2a3_4d3b_b86e_28061698cdd2" />
+        <ComponentRef Id="_locales_nl.pak_e8b68c96_be0b_4d68_a125_078a7c572b5e" />
+        <ComponentRef Id="_locales_pl.pak_f26aa2dd_da5a_4690_9f22_336fff7174ef" />
+        <ComponentRef Id="_locales_pt_BR.pak_6125c4c8_05e9_491e_9167_50352406f859" />
+        <ComponentRef Id="_locales_pt_PT.pak_3655a15b_0e0b_4a92_b8d5_b88a54fbd17f" />
+        <ComponentRef Id="_locales_ro.pak_3ae1da1e_5b04_4a73_8a0b_0f8e139da959" />
+        <ComponentRef Id="_locales_ru.pak_acf3671a_d495_4a47_845d_16df3cb92328" />
+        <ComponentRef Id="_locales_sk.pak_0e0e7521_04ca_4f6c_b05e_90ea5731cec2" />
+        <ComponentRef Id="_locales_sl.pak_32495314_f2f9_462f_aca8_a26493854851" />
+        <ComponentRef Id="_locales_sr.pak_a3c77b0f_5920_4f36_af9b_7f61eeffedea" />
+        <ComponentRef Id="_locales_sv.pak_8745e8a9_7459_4c9b_b971_2130c4a924a9" />
+        <ComponentRef Id="_locales_sw.pak_f09dd193_62ea_4311_bb95_d268d8a40366" />
+        <ComponentRef Id="_locales_ta.pak_63cafdb2_d403_4c79_8c27_87cfe7ef4336" />
+        <ComponentRef Id="_locales_te.pak_659f53c8_0c8f_4406_bbf0_2e60b8a2e4a4" />
+        <ComponentRef Id="_locales_th.pak_9d744c0d_dc40_410a_85b3_702cf2364518" />
+        <ComponentRef Id="_locales_tr.pak_9300101d_b64c_471d_a56e_6988ac6a998e" />
+        <ComponentRef Id="_locales_uk.pak_4b535ede_c1d8_46e6_afa5_68e00b220b70" />
+        <ComponentRef Id="_locales_ur.pak_edaf065f_1ff4_45ca_98c4_d598910e0bf8" />
+        <ComponentRef Id="_locales_vi.pak_d91b7303_779e_4f9d_aa5d_4754bce97af1" />
+        <ComponentRef Id="_locales_zh_CN.pak_29cc053e_b6d9_4417_a411_a8ba1b8d986e" />
+        <ComponentRef Id="_locales_zh_TW.pak_63d7d405_3e34_4215_8753_5ddf88cc572e" />
+        <ComponentRef Id="_resources_app.asar_d922b8d6_9523_4084_b24e_cf3ad5b1a093" />
+        <ComponentRef Id="_GameIT.exe_4c359004_3798_46da_bf45_a63dc12919af" />
+        <ComponentRef Id="_LICENSE_9abf1d5a_4f33_4fe0_95d3_779ad6a99437" />
+        <ComponentRef Id="_LICENSES.chromium.html_3cdc9f99_927e_4055_8ac8_0875176b6ee9" />
+        <ComponentRef Id="_chrome_100_percent.pak_02acf2b7_1ad1_45c5_8c3e_5268584dd21c" />
+        <ComponentRef Id="_chrome_200_percent.pak_f3446945_972a_4125_a4b2_555f536c03cd" />
+        <ComponentRef Id="_d3dcompiler_47.dll_fc2aa09a_e78c_4c2d_b432_3b921bff3448" />
+        <ComponentRef Id="_ffmpeg.dll_33c14836_afe3_40ed_9231_f0c09a7f54a6" />
+        <ComponentRef Id="_icudtl.dat_2e75fc3e_ca30_4dab_a780_bdd205fd843c" />
+        <ComponentRef Id="_libEGL.dll_7db818d1_e1c3_442a_b33c_6d6327b00e61" />
+        <ComponentRef Id="_libGLESv2.dll_072c0b25_26df_471a_a446_2318eac954e6" />
+        <ComponentRef Id="_resources.pak_73464d1d_7295_471a_9919_22e243f31771" />
+        <ComponentRef Id="_snapshot_blob.bin_f7622bc9_ce53_4fa4_929f_1ab694a9ecda" />
+        <ComponentRef Id="_v8_context_snapshot.bin_981bb6e0_6ece_4e62_b5fe_ccf16673bdf8" />
+        <ComponentRef Id="_version_e76b3496_4172_485d_aab8_e791cd86f77b" />
+        <ComponentRef Id="_vk_swiftshader.dll_b9d00506_cb66_4205_9a20_6be0eaa85000" />
+        <ComponentRef Id="_vk_swiftshader_icd.json_18dc0e25_a99b_43e7_9cc3_cae0d48a6e59" />
+        <ComponentRef Id="_vulkan_1.dll_7124b82a_3588_4b32_aa9a_9006e111a460" />
+        <ComponentRef Id="_GameIT.exe_03ab89f9_f548_40ea_bdfe_5e38db19a0e3" />
+        <ComponentRef Id="_.installInfo.json_f3ae1183_9bb1_4a24_a329_3bc4df59970e" />
+        <ComponentRef Id="RegistryInstallPath" />
+        <ComponentRef Id="UninstallDisplayName" />
+        <ComponentRef Id="UninstallPublisher" />
+        <ComponentRef Id="UninstallDisplayVersion" />
+        <ComponentRef Id="UninstallModifyString" />
+        <ComponentRef Id="UninstallString" />
+        <ComponentRef Id="UninstallDisplayIcon" />
+        <ComponentRef Id="ApplicationShortcut" />
+        <ComponentRef Id="DesktopShortcut" />
+        <ComponentRef Id="PurgeOnUninstall" />
+      </Feature> 
+    </Feature> 
+  </Product>
+</Wix>
